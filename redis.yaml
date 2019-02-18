@@ -1,0 +1,139 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  labels:
+    app: redis-master
+spec:
+  externalIPs:
+  - 192.168.0.238
+  ports:
+  - port: 6379
+    name: redis-master
+  selector:
+    app: redis-master
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: redis-master
+spec:
+  serviceName: redis-master
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis-master
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: redis-primary
+        #image: corybuecker/redis:3.2
+        image: harbor.oeasy.com/k8s/redis:3.2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 6379
+          name: redis-primary
+        volumeMounts:
+        - name: redis-primary-volume
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-primary-volume
+      annotations:
+        volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-slave
+  labels:
+    app: redis-slave
+spec:
+  ports:
+  - port: 6379
+    name: redis-slave
+  selector:
+    app: redis-slave
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: redis-slave
+spec:
+  serviceName: redis-slave
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: redis-slave
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: redis-slave
+        #image: corybuecker/redis:3.2
+        image: harbor.oeasy.com/k8s/redis:3.2
+        imagePullPolicy: Always
+        env:
+        - name: REPLICA
+          value: "true"
+        ports:
+        - containerPort: 6379
+          name: redis-slave
+        volumeMounts:
+        - name: redis-slave-volume
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-slave-volume
+      annotations:
+        volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-sentinel
+  labels:
+    app: redis-sentinel
+spec:
+  ports:
+  - port: 26379
+    name: redis-sentinel
+  selector:
+    app: redis-sentinel
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: redis-sentinel
+spec:
+  serviceName: redis-sentinel
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: redis-sentinel
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: redis-sentinel
+        #image: corybuecker/redis:3.2
+        image: harbor.oeasy.com/k8s/redis:3.2
+        imagePullPolicy: Always
+        env:
+        - name: SENTINEL
+          value: redis-primary
+        ports:
+        - containerPort: 26379
+          name: redis-sentinel
